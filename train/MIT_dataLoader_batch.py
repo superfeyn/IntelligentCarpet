@@ -13,7 +13,7 @@ def window_select(log, path, f ,idx, window):
     if window == 0:
         d = pickle.load(open(path + '/' + str(idx) + '.p', "rb"))
 
-        return np.reshape(d[0], (1,32,32)), d[1], np.reshape(d[0], (1,32,32))
+        return np.reshape(d[0], (1,64,64)), d[1], np.reshape(d[0], (1,64,64))
 
 
     max_len = log[f+1]
@@ -23,9 +23,9 @@ def window_select(log, path, f ,idx, window):
 
     dh = pickle.load(open(path + '/' + str(idx) + '.p', "rb"))
     sensor = dh[1]
-    tactile_frame = np.reshape(dh[0], (1,32,32))
+    tactile_frame = np.reshape(dh[0], (1,64,64))
 
-    tactile = np.empty((2*window, 32, 32))
+    tactile = np.empty((2*window, 64, 64))
 
     if l == min_len:
         for i in range(min_len, min_len+2*window):

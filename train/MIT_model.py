@@ -39,41 +39,15 @@ class tile2openpose_conv3d(nn.Module):
             nn.BatchNorm2d(128))
         #128*32*32
 
-        self.conv_3 = nn.Sequential(
-            nn.Conv2d(128, 256, kernel_size=(3,3),padding=1),
-            nn.LeakyReLU(),
-            nn.BatchNorm2d(256),
-            nn.MaxPool2d(kernel_size=2)) # 24 * 24
-        #256*16*16
-
-        self.conv_4 = nn.Sequential(
-            nn.Conv2d(256, 512, kernel_size=(3,3),padding=1),
-            nn.LeakyReLU(),
-            nn.BatchNorm2d(512))
-        #512*16*16
-
-        self.conv_5 = nn.Sequential(
-            nn.Conv2d(512, 1024, kernel_size=(5,5)),
-            nn.LeakyReLU(),
-            nn.BatchNorm2d(1024))
-        #1024*8*8
-
-        self.conv_6 = nn.Sequential(
-            nn.Conv2d(1024, 1024, kernel_size=(3,3),padding=1),
-            nn.LeakyReLU(),
-            nn.BatchNorm2d(1024),
-            nn.MaxPool2d(kernel_size=2)) # 10 * 10
-        #1024*4*4
 
         self.l1 = nn.Sequential(
-            nn.Linear(1024*2*2, 512), #for 32*32: nn.Linear(1024*2*2, 512)
+            nn.Linear(128*32*32, 512), #for 32*32: nn.Linear(1024*2*2, 512)
             nn.BatchNorm1d(512),
             nn.LeakyReLU(),
             nn.Dropout(0.5)
         )
         self.l2 = nn.Sequential(
             nn.Linear(512, 2),
-            nn.Dropout(0.5)
         )
 
 
@@ -82,12 +56,8 @@ class tile2openpose_conv3d(nn.Module):
         output = self.conv_0(input)
         output = self.conv_1(output)
         output = self.conv_2(output)
-        output = self.conv_3(output)
-        output = self.conv_4(output)
-        output = self.conv_5(output)
-        output = self.conv_6(output)
 
-        output = output.view(input.shape[0], 1024*2*2)
+        output = output.view(input.shape[0], 128*32*32)
         output = self.l1(output)
         output = self.l2(output)
 

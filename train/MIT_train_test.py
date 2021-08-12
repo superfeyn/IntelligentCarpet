@@ -23,12 +23,12 @@ parser.add_argument('--exp_dir', type=str, default='/home/shlee/IntelligentCarpe
 parser.add_argument('--exp', type=str, default='singlePeople', help='Name of experiment')
 parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
 parser.add_argument('--batch_size', type=int, default=32, help='Batch size,128')
-parser.add_argument('--weightdecay', type=float, default=1e-3, help='weight decay')
+parser.add_argument('--weightdecay', type=float, default=1e-4, help='weight decay')
 parser.add_argument('--window', type=int, default=10, help='window around the time step')
 parser.add_argument('--subsample', type=int, default=1, help='subsample tile res')
 parser.add_argument('--linkLoss', type=bool, default=False, help='use link loss')
 parser.add_argument('--epoch', type=int, default=500, help='The time steps you want to subsample the dataset to,500')
-parser.add_argument('--ckpt', type=str, default ='singlePeople_0.0001_10_cp3', help='loaded ckpt file')
+parser.add_argument('--ckpt', type=str, default ='singlePeople_0.0001_10_best', help='loaded ckpt file')
 parser.add_argument('--eval', type=bool, default=False, help='Set true if eval time') #True
 parser.add_argument('--test_dir', type=str, default ='./test/', help='test data path') #singlePerson_test
 parser.add_argument('--exp_image', type=bool, default=False, help='Set true if export predictions as images')
@@ -82,13 +82,13 @@ use_gpu = True
 device = 'cuda:0'
 
 if not args.eval:
-    train_path = args.exp_dir + 'train/'#'exp1_train_dataset_more'
+    train_path = args.exp_dir + 'train_norm/'#'exp1_train_dataset_more'
     mask = []
     train_dataset = sample_data(train_path, args.window, mask, args.subsample)
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size,shuffle=True, num_workers=8)
     print (len(train_dataset))
 
-    val_path = args.exp_dir + 'val/'#'exp1_val_dataset_more'
+    val_path = args.exp_dir + 'val_norm/'#'exp1_val_dataset_more'
     mask = []
     val_dataset = sample_data(val_path, args.window, mask, args.subsample)
     val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=8)
@@ -96,7 +96,7 @@ if not args.eval:
 
 
 if args.eval:
-    test_path = args.exp_dir + 'test/' #args.test_dir
+    test_path = args.exp_dir + 'val/' #args.test_dir
     mask = []
     test_dataset = sample_data(test_path, args.window, mask, args.subsample)
     # test_dataset = sample_data_diffTask(test_path, args.window, args.subsample) # use this line for the diffTask test set
@@ -157,7 +157,7 @@ if __name__ == '__main__':
         c = 0
         for i_batch, sample_batched in bar(enumerate(test_dataloader, 0)):
 
-            tactile = torch.tensor(sample_batched[0], dtype=torch.float, device=device)/255.
+            tactile = torch.tensor(sample_batched[0], dtype=torch.float, device=device)
             sensor = torch.tensor(sample_batched[1], dtype=torch.float, device=device)
             tactile_frame = torch.tensor(sample_batched[2], dtype=torch.float, device=device)
 
@@ -167,7 +167,7 @@ if __name__ == '__main__':
 
             #loss_heatmap = torch.mean((heatmap_transform - heatmap)**2 * (heatmap + 0.5) * 2) * 1000
             #heatmap_out = heatmap_transform
-            if i_batch%20==0:
+            if i_batch%10==0:
                 print("sensor_out: ", sensor_out[0], "real_value: ", sensor[0])
 
             '''log data for L2 distance'''
@@ -208,7 +208,7 @@ if __name__ == '__main__':
     best_val_loss = np.inf
 
     if args.train_continue:
-        best_val_loss = 0.0734
+        best_val_loss = 3700 #0.0734
 
     for epoch in range(args.epoch):
 
@@ -220,7 +220,7 @@ if __name__ == '__main__':
 
         for i_batch, sample_batched in bar(enumerate(train_dataloader, 0)):
             model.train(True)
-            tactile = torch.tensor(sample_batched[0], dtype=torch.float, device=device)/255.
+            tactile = torch.tensor(sample_batched[0], dtype=torch.float, device=device)
             sensor = torch.tensor(sample_batched[1], dtype=torch.float, device=device)
             idx = torch.tensor(sample_batched[2], dtype=torch.float, device=device)
 
@@ -231,8 +231,6 @@ if __name__ == '__main__':
 
             loss_sensor = criterion(sensor_out, sensor)
             loss = loss_sensor
-            if i_batch%500==0:
-                print(i_batch)
 
             optimizer.zero_grad()
             loss.backward()
@@ -254,7 +252,7 @@ if __name__ == '__main__':
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss,},
                  args.exp_dir + 'ckpts/' + args.exp + '_' + str(args.lr)
-                 + '_' + str(args.window) + '_' + 'cp'+ str(epoch) + '.path.tar')
+                 + '_' + str(args.window) + '_' + 'cp'+ str(epoch//5) + '.path.tar') #str(epoch)
 
                 print("Now running on val set")
                 model.train(False)
@@ -263,7 +261,7 @@ if __name__ == '__main__':
 
                 bar = ProgressBar(max_value=len(val_dataloader))
                 for i_batch, sample_batched in bar(enumerate(val_dataloader, 0)):
-                    tactile = torch.tensor(sample_batched[0], dtype=torch.float, device=device)/255.
+                    tactile = torch.tensor(sample_batched[0], dtype=torch.float, device=device)
                     sensor = torch.tensor(sample_batched[1], dtype=torch.float, device=device)
                     idx = torch.tensor(sample_batched[2], dtype=torch.float, device=device)
 
