@@ -15,11 +15,9 @@ import cv2
 import h5py
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from progressbar import ProgressBar
-from threeD_viz_video import generateVideo
-from threeD_viz_image import generateImage
 
 parser = argparse.ArgumentParser(description='Process some integers.')
-parser.add_argument('--exp_dir', type=str, default='/home/shlee/IntelligentCarpet/train/', help='Experiment path') #./train
+parser.add_argument('--exp_dir', type=str, default='train/', help='Experiment path') #./train
 parser.add_argument('--exp', type=str, default='singlePeople', help='Name of experiment')
 parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
 parser.add_argument('--batch_size', type=int, default=32, help='Batch size,128')
@@ -62,19 +60,20 @@ def get_keypoint_spatial_dis(keypoint_GT, keypoint_pred):
     dis = get_spatial_keypoint(keypoint_pred) - get_spatial_keypoint(keypoint_GT)
     # mean = np.reshape(np.mean(dis, axis=0), (21,3))
     return dis
+my_dir = os.path.join(os.getcwd(), args.exp_dir)
 
-if not os.path.exists(args.exp_dir + 'ckpts'):
-    os.makedirs(args.exp_dir + 'ckpts')
+if not os.path.exists(my_dir + 'ckpts'):
+    os.makedirs(my_dir + 'ckpts')
 
-if not os.path.exists(args.exp_dir + 'log'):
-    os.makedirs(args.exp_dir + 'log')
+if not os.path.exists(my_dir + 'log'):
+    os.makedirs(my_dir + 'log')
 
-if not os.path.exists(args.exp_dir + 'predictions'):
-    os.makedirs(args.exp_dir + 'predictions')
-    os.makedirs(args.exp_dir + 'predictions/image')
-    os.makedirs(args.exp_dir + 'predictions/video')
-    os.makedirs(args.exp_dir + 'predictions/L2')
-    os.makedirs(args.exp_dir + 'predictions/data')
+if not os.path.exists(my_dir + 'predictions'):
+    os.makedirs(my_dir + 'predictions')
+    os.makedirs(my_dir + 'predictions/image')
+    os.makedirs(my_dir + 'predictions/video')
+    os.makedirs(my_dir + 'predictions/L2')
+    os.makedirs(my_dir + 'predictions/data')
 
 # use_gpu = torch.cuda.is_available()
 # device = 'cuda:0' if use_gpu else 'cpu'
