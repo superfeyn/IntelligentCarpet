@@ -17,6 +17,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from progressbar import ProgressBar
 from threeD_viz_video import generateVideo
 from threeD_viz_image import generateImage
+from torchvision import transforms
 
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument('--exp_dir', type=str, default='/home/shlee/IntelligentCarpet/train/', help='Experiment path') #./train
@@ -82,13 +83,13 @@ use_gpu = True
 device = 'cuda:0'
 
 if not args.eval:
-    train_path = args.exp_dir + 'train_norm/'#'exp1_train_dataset_more'
+    train_path = "/home/shlee/aaSSD/MIT_data/walking_data/agumented/train/"#'exp1_train_dataset_more'
     mask = []
     train_dataset = sample_data(train_path, args.window, mask, args.subsample)
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size,shuffle=True, num_workers=8)
     print (len(train_dataset))
 
-    val_path = args.exp_dir + 'val_norm/'#'exp1_val_dataset_more'
+    val_path = "/home/shlee/aaSSD/MIT_data/walking_data/agumented/val/"#'exp1_val_dataset_more'
     mask = []
     val_dataset = sample_data(val_path, args.window, mask, args.subsample)
     val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=8)
@@ -96,7 +97,7 @@ if not args.eval:
 
 
 if args.eval:
-    test_path = args.exp_dir + 'val/' #args.test_dir
+    test_path = args.exp_dir + 'val_norm/' #args.test_dir
     mask = []
     test_dataset = sample_data(test_path, args.window, mask, args.subsample)
     # test_dataset = sample_data_diffTask(test_path, args.window, args.subsample) # use this line for the diffTask test set
@@ -109,16 +110,14 @@ if __name__ == '__main__':
     np.random.seed(0)
     torch.manual_seed(0)
     model = tile2openpose_conv3d(args.window) # model
-    #softmax = SpatialSoftmax3D(20, 20, 18, 21)
-
     model.to(device)
-    #softmax.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weightdecay)
     scheduler = ReduceLROnPlateau(optimizer, 'min', factor=0.8, patience=5, verbose=True)
     pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print (pytorch_total_params)
     criterion = nn.MSELoss()
+    criterion_c = nn.CrossEntropyLoss()
 
 
     if args.train_continue:
@@ -151,29 +150,27 @@ if __name__ == '__main__':
         sensor_GT_log = np.empty((1,1,2))
         sensor_pred_log = np.empty((1,1,2))
 
+        classfi_GT = np.empty((1,1,5))
+        classfi_pred = np.empty((1,1,5))
+
 
         bar = ProgressBar(max_value=len(test_dataloader))
 
         c = 0
         for i_batch, sample_batched in bar(enumerate(test_dataloader, 0)):
-
-            tactile = torch.tensor(sample_batched[0], dtype=torch.float, device=device)
+            min, max = torch.min(sample_batched[0]), torch.max(sample_batched[0])
+            #tactile = (torch.tensor(sample_batched[0], dtype=torch.float, device=device)-min)/(max-min)
+            tactile = torch.tensor(sample_batched[0], dtype=torch.float, device=device)/700.
             sensor = torch.tensor(sample_batched[1], dtype=torch.float, device=device)
-            tactile_frame = torch.tensor(sample_batched[2], dtype=torch.float, device=device)
-
+            classifi = torch.tensor(sample_batched[2], dtype=torch.long, device=device)
+            tactile_frame = torch.tensor(sample_batched[3], dtype=torch.float, device=device)
 
             with torch.set_grad_enabled(False):
-                sensor_out = model(tactile, device)
+                sensor_out, classifi_out = model(tactile, device)
 
-            #loss_heatmap = torch.mean((heatmap_transform - heatmap)**2 * (heatmap + 0.5) * 2) * 1000
-            #heatmap_out = heatmap_transform
-            if i_batch%10==0:
-                print("sensor_out: ", sensor_out[0], "real_value: ", sensor[0])
 
-            '''log data for L2 distance'''
-            if args.exp_L2:
-                sensor_GT_log = np.append(sensor_GT_log, sensor.cpu().data.numpy().reshape(-1,1,2),axis=0)
-                sensor_pred_log = np.append(sensor_pred_log, sensor.cpu().data.numpy().reshape(-1,1,2),axis=0)
+            if i_batch%5==0:
+                print("sensor_out: ", sensor_out[0], classifi_out[0].max(dim=0)[1], "real_value: ", sensor[0], classifi[0])
 
             '''save data'''
             if args.exp_data:
@@ -192,14 +189,6 @@ if __name__ == '__main__':
 
             avg_val_loss.append(loss.data.item())
         print ("Loss:", np.mean(avg_val_loss))
-
-        '''output L2 distance'''
-        if args.exp_L2:
-            dis = np.linalg.norm(sensor_GT_log-sensor_pred_log)
-
-            #dis = get_keypoint_spatial_dis(keypoint_GT_log[1:,:,:], keypoint_pred_log[1:,:,:])
-            pickle.dump(dis, open(args.exp_dir + 'predictions/L2/'+ args.ckpt + '_dis.p', "wb"))
-            print ("sensor_dis_saved:", dis.shape)
 
 
     train_loss_list = np.zeros((1))
@@ -220,17 +209,21 @@ if __name__ == '__main__':
 
         for i_batch, sample_batched in bar(enumerate(train_dataloader, 0)):
             model.train(True)
-            tactile = torch.tensor(sample_batched[0], dtype=torch.float, device=device)
+            min, max = torch.min(sample_batched[0]), torch.max(sample_batched[0])
+            #tactile = (torch.tensor(sample_batched[0], dtype=torch.float, device=device)-min)/(max-min)
+            tactile = torch.tensor(sample_batched[0], dtype=torch.float, device=device)/700.
             sensor = torch.tensor(sample_batched[1], dtype=torch.float, device=device)
-            idx = torch.tensor(sample_batched[2], dtype=torch.float, device=device)
+            classifi = torch.tensor(sample_batched[2], dtype=torch.long, device=device)
+            idx = torch.tensor(sample_batched[3], dtype=torch.float, device=device)
 
             with torch.set_grad_enabled(True):
-                sensor_out = model(tactile, device) #output : speed and angle
+                sensor_out, classifi_out = model(tactile, device) #output : speed and angle
 
                # keypoint_out, heatmap_out2 = softmax(heatmap_transform * 10)
 
             loss_sensor = criterion(sensor_out, sensor)
-            loss = loss_sensor
+            loss_classifi = criterion_c(classifi_out, classifi)
+            loss = loss_sensor + loss_classifi
 
             optimizer.zero_grad()
             loss.backward()
@@ -238,10 +231,10 @@ if __name__ == '__main__':
 
             train_loss.append(loss.data.item())
             if i_batch % 500 ==0 and i_batch!=0:
-                print("[%d/%d] LR: %.6f, Loss: %.6f, Sensor_loss: %.6f, "
+                print("[%d/%d] LR: %.6f, Loss: %.6f, Sensor_loss: %.6f, Class_loss: %.6f, "
                       "s_max_gt: %.6f, %.6f, s_max_pred: %.6f, %.6f, s_min_gt: %.6f, %.6f s_min_pred: %.6f, %.6f,"
                       % (
-                    i_batch, len(train_dataloader), get_lr(optimizer), loss.item(), loss_sensor,
+                    i_batch, len(train_dataloader), get_lr(optimizer), loss.item(), loss_sensor, loss_classifi,
                     np.amax(sensor.cpu()[:,0].data.numpy()), np.amax(sensor.cpu()[:,1].data.numpy()), np.amax(sensor_out[:,0].cpu().data.numpy()), np.amax(sensor_out[:,1].cpu().data.numpy()),
                     np.amin(sensor.cpu()[:,0].data.numpy()), np.amin(sensor.cpu()[:,1].data.numpy()), np.amin(sensor_out[:,0].cpu().data.numpy()), np.amin(sensor_out[:,1].cpu().data.numpy())))
 
@@ -252,7 +245,7 @@ if __name__ == '__main__':
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss,},
                  args.exp_dir + 'ckpts/' + args.exp + '_' + str(args.lr)
-                 + '_' + str(args.window) + '_' + 'cp'+ str(epoch//5) + '.path.tar') #str(epoch)
+                 + '_' + str(args.window) + '_' + 'cp'+ str(epoch) + '.path.tar') #str(epoch)
 
                 print("Now running on val set")
                 model.train(False)
@@ -261,21 +254,28 @@ if __name__ == '__main__':
 
                 bar = ProgressBar(max_value=len(val_dataloader))
                 for i_batch, sample_batched in bar(enumerate(val_dataloader, 0)):
-                    tactile = torch.tensor(sample_batched[0], dtype=torch.float, device=device)
+
+                    min, max = torch.min(sample_batched[0]), torch.max(sample_batched[0])
+                    #tactile = (torch.tensor(sample_batched[0], dtype=torch.float, device=device) - min) / (max - min)
+                    tactile = torch.tensor(sample_batched[0], dtype=torch.float, device=device) / 700.
                     sensor = torch.tensor(sample_batched[1], dtype=torch.float, device=device)
-                    idx = torch.tensor(sample_batched[2], dtype=torch.float, device=device)
+                    classifi = torch.tensor(sample_batched[2], dtype=torch.long, device=device)
+                    idx = torch.tensor(sample_batched[3], dtype=torch.float, device=device)
 
                     with torch.set_grad_enabled(False):
-                        sensor_out = model(tactile, device)  # output : speed and angle
+                        sensor_out, classifi_out = model(tactile, device)
+
+
 
                     loss_sensor = criterion(sensor_out, sensor)
-                    loss = loss_sensor
+                    loss_classifi = criterion_c(classifi_out, classifi)
+                    loss = loss_sensor + loss_classifi
 
                     if i_batch % 300 == 0 and i_batch != 0:
-                        print("[%d/%d] LR: %.6f, Loss: %.6f, Sensor_loss: %.6f, "
+                        print("[%d/%d] LR: %.6f, Loss: %.6f, Sensor_loss: %.6f, Class_loss: %.6f, "
                               "s_max_gt: %.6f, %.6f, s_max_pred: %.6f, %.6f, s_min_gt: %.6f, %.6f s_min_pred: %.6f, %.6f,"
                               % (
-                                  i_batch, len(train_dataloader), get_lr(optimizer), loss.item(), loss_sensor,
+                                  i_batch, len(train_dataloader), get_lr(optimizer), loss.item(), loss_sensor, loss_classifi,
                                   np.amax(sensor.cpu()[:, 0].data.numpy()),
                                   np.amax(sensor.cpu()[:, 1].data.numpy()),
                                   np.amax(sensor_out[:, 0].cpu().data.numpy()),

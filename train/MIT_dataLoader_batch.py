@@ -23,6 +23,7 @@ def window_select(log, path, f ,idx, window):
 
     dh = pickle.load(open(path + '/' + str(idx) + '.p', "rb"))
     sensor = dh[1]
+    classifi = dh[2]
     tactile_frame = np.reshape(dh[0], (1,64,64))
 
     tactile = np.empty((2*window, 64, 64))
@@ -33,7 +34,7 @@ def window_select(log, path, f ,idx, window):
             tactile[i-min_len,:,:] = d[0]
 
         tactile_frame = tactile_frame.astype('float64')
-        return tactile, sensor, tactile_frame
+        return tactile, sensor, classifi, tactile_frame
 
     elif u == max_len:
         for i in range(max_len-2*window, max_len):
@@ -41,7 +42,7 @@ def window_select(log, path, f ,idx, window):
             tactile[i-(max_len-2*window),:,:] = d[0]
 
         tactile_frame = tactile_frame.astype('float64')
-        return tactile, sensor, tactile_frame
+        return tactile, sensor, classifi, tactile_frame
 
     else:
         for i in range(l, u):
@@ -49,7 +50,7 @@ def window_select(log, path, f ,idx, window):
             tactile[i-l,:,:] = d[0]
 
         tactile_frame = tactile_frame.astype('float64')
-        return tactile, sensor, tactile_frame
+        return tactile, sensor, classifi, tactile_frame
 
 
 def get_subsample(touch, subsample):
@@ -84,13 +85,13 @@ class sample_data(Dataset):
         if self.mask != []:
             f = np.where((self.log + self.mask)<=idx)[0][-1]
             local_path = os.path.join(self.path, str(self.log[f]))
-            tactile, sensor, tactile_frame = window_select(self.log, local_path, f, idx-self.mask[f], self.window)
+            tactile, sensor, classifi, tactile_frame = window_select(self.log, local_path, f, idx-self.mask[f], self.window)
         else:
             f = np.where(self.log<=idx)[0][-1]
             local_path = os.path.join(self.path, str(self.log[f]))
-            tactile, sensor, tactile_frame = window_select(self.log, local_path, f, idx, self.window)
+            tactile, sensor, classifi, tactile_frame = window_select(self.log, local_path, f, idx, self.window)
 
         if self.subsample > 1:
             tactile = get_subsample(tactile, self.subsample)
 
-        return tactile, sensor, tactile_frame, idx
+        return tactile, sensor, classifi, tactile_frame, idx
