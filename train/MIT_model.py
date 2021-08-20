@@ -41,38 +41,41 @@ class tile2openpose_conv3d(nn.Module):
 
 
         self.l1 = nn.Sequential(
-            nn.Linear(128*32*32, 512), #for 32*32: nn.Linear(1024*2*2, 512)
+            nn.Linear(128*32*32, 512),
             nn.BatchNorm1d(512),
             nn.LeakyReLU(),
             nn.Dropout(0.5)
         )
         self.l2 = nn.Sequential(
             nn.Linear(512, 2),
+            nn.Sigmoid()
         )
 
+        self.c1 = nn.Sequential(
+            nn.Linear(128*32*32, 512),
+            nn.BatchNorm1d(512),
+            nn.LeakyReLU(),
+            nn.Dropout(0.5)
+        )
+        self.c2 = nn.Sequential(
+            nn.Linear(512, 5),
+        )
 
 
     def forward(self, input, device):
         output = self.conv_0(input)
         output = self.conv_1(output)
         output = self.conv_2(output)
-
         output = output.view(input.shape[0], 128*32*32)
-        output = self.l1(output)
-        output = self.l2(output)
+
+        sp_ag = self.l1(output)
+        sp_ag = self.l2(sp_ag)
+
+        classifi = self.c1(output)
+        classifi = self.c2(classifi)
 
 
-        # output = output.reshape(output.shape[0],output.shape[1],output.shape[2],output.shape[3],1)
-        # output = output.repeat(1,1,1,1,9)
-        #
-        # layer = torch.zeros(output.shape[0], 1, output.shape[2], output.shape[3], output.shape[4]).to(device)
-        # for i in range(layer.shape[4]):
-        #     layer[:,:,:,:,i] = i
-        # layer = layer/(layer.shape[4]-1)
-        # output = torch.cat( (output,layer), axis=1)
 
-        # print (output.shape)
-
-        return output
+        return sp_ag, classifi
 
 

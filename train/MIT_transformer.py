@@ -25,7 +25,7 @@ class PositionalEncoding(nn.Module):
         def get_position_angle_vec(position):
             return [position / np.power(10000, 2 * (hid_j // 2) / hidden_dim) \
                     for hid_j in range(hidden_dim)]
-        sinusoid_table = np.array([get_position_angle_vec(pos_idx) for pos_idx in range(num_position)])
+        sinusoid_table = np.array([get_position_angle_vec(pos_idx) for pos_idx in range(num_pos)])
         sinusoid_table[:, 0::2] = np.sin(sinusoid_table[:, 0::2])
         sinusoid_table[:, 1::2] = np.cos(sinusoid_table[:, 1::2])
 
@@ -76,7 +76,7 @@ class Decoder(nn.Module):
         super().__init__()
 
         self.trg_emb = nn.Embedding(trg_dim, emb_dim, padding_idx=pad_ind)
-        self.pos_enc = PositionalEncoding(emb_dim, n_position=num_pos)
+        self.pos_enc = PositionalEncoding(emb_dim, num_pos=num_pos)
         self.dr = nn.Dropout(p=dr)
         self.layer_stack = nn.ModuleList([
             DecoderLayer(model_dim, inner_dim, num_head, k_dim, v_dim, dropout=dr)
